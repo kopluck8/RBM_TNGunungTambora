@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%232f6b3b%27/%3E%3Cpath d=%27M6 24 14 10l4 6 3-4 5 12Z%27 fill=%27%23fff%27/%3E%3C/svg%3E">
+<link rel="icon" href="../assets/logo.png">
 <title>Dashboard Capaian RBM</title>
 <link rel="stylesheet" href="../assets/style.css">
 </head>
 <body>
 <header class="top">
   <div class="wrap">
-    <a class="brand" href="../"><span class="brand-mark">RBM</span><span><b>Resort Based Management</b><small>Taman Nasional Tambora</small></span></a>
+    <a class="brand" href="../"><img class="brand-logo" src="../assets/logo.png" alt="Logo kantor" onerror="this.remove();document.querySelector('.brand-mark').hidden=false"><span class="brand-mark" hidden>RBM</span><span><b>Resort Based Management</b><small>Taman Nasional Tambora</small></span></a>
     <nav class="top-nav"><a href="../form/">Form</a><a href="./" aria-current="page">Dashboard</a></nav>
   </div>
 </header>
@@ -37,7 +37,6 @@
       <div class="legend" style="margin-bottom:10px">
         <span><i class="sw" style="background:var(--s-diterima)"></i>Diterima</span>
         <span><i class="sw" style="background:var(--s-masuk)"></i>Dilaporkan, belum diterima</span>
-        <span><i class="sw tick"></i>Target s.d. bulan ini</span>
       </div>
       <div id="c1"></div>
     </section>
@@ -58,8 +57,8 @@
       <div><h2>Rincian per kegiatan</h2><p id="t-sub"></p></div>
       <div class="seg" role="group" aria-label="Saring status" id="seg" style="margin-left:auto">
         <button aria-pressed="true" data-s="">Semua</button>
-        <button aria-pressed="false" data-s="tertinggal">Tertinggal</button>
-        <button aria-pressed="false" data-s="perhatian">Perlu perhatian</button>
+        <button aria-pressed="false" data-s="belum">Belum ada realisasi</button>
+        <button aria-pressed="false" data-s="berjalan">Berjalan</button>
         <button aria-pressed="false" data-s="tercapai">Tercapai</button>
       </div>
     </div>
@@ -114,7 +113,7 @@
   const semuaKeg = RBM.hitung(rencana, data.laporan);
 
   $('tahun').textContent = rencana.tahun;
-  $('meta').innerHTML = `Data per ${new Date(data.diperbarui).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}<br>Target pro-rata: ${bb} dari 12 bulan (${fmt(bb / 12 * 100)}%)`;
+  $('meta').innerHTML = `Data per ${new Date(data.diperbarui).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}<br>Target tahunan · sisa waktu ${12 - bb} bulan`;
   $('foot').innerHTML = `Sumber rencana: ${esc(rencana.sumber)} · ${rencana.kegiatan.length} kegiatan di ${rencana.resor.length} resor. ` +
     'Capaian resor = rata-rata capaian setiap kegiatan (tiap kegiatan bobotnya sama, maksimal 100%), karena satuan target berbeda-beda.';
 
@@ -188,20 +187,18 @@
   // ---------- KPI ----------
   function renderKpi(ks, laps) {
     const capD = rata(ks.map(k => k.capD)), capM = rata(ks.map(k => k.capM));
-    const harap = bb / 12 * 100;
     const tercapai = ks.filter(k => k.status === 'tercapai').length;
-    const tertinggal = ks.filter(k => k.status === 'tertinggal').length;
+    const belum = ks.filter(k => k.status === 'belum').length;
     const menunggu = laps.filter(l => l.status === 'Menunggu').length;
     const revisi = laps.filter(l => l.status === 'Revisi').length;
     const luar = laps.filter(l => l.kegiatan === 'LUAR-RENCANA');
     const masukTotal = laps.length;
     const sesuaiPct = masukTotal ? (masukTotal - luar.length) / masukTotal * 100 : 0;
-    const selisih = capD - harap;
     $('kpis').innerHTML = `
       <div class="kpi"><div class="k-label">Capaian terverifikasi</div><div class="k-value">${fmt(capD)}%</div>
-        <div class="k-sub">${selisih >= 0 ? '' : fmt(-selisih) + ' poin di bawah '}target pro-rata ${fmt(harap)}%${selisih >= 0 ? ' terlampaui' : ''} · dilaporkan ${fmt(capM)}%</div></div>
+        <div class="k-sub">dari target tahunan · termasuk yang belum diverifikasi ${fmt(capM)}%</div></div>
       <div class="kpi"><div class="k-label">Kegiatan tercapai</div><div class="k-value">${tercapai} <span style="font-size:16px;color:var(--muted);font-weight:500">/ ${ks.length}</span></div>
-        <div class="k-sub">${tertinggal} kegiatan tertinggal dari jadwal</div></div>
+        <div class="k-sub">${belum} kegiatan belum ada realisasi diterima</div></div>
       <div class="kpi"><div class="k-label">Menunggu verifikasi</div><div class="k-value">${menunggu}</div>
         <div class="k-sub">${revisi} laporan perlu revisi</div></div>
       <div class="kpi"><div class="k-label">Kesesuaian dengan rencana</div><div class="k-value">${fmt(sesuaiPct)}%</div>
@@ -235,7 +232,6 @@
       el('line', { x1: sx(v), x2: sx(v), y1: top, y2: H - 20, stroke: v === 0 ? 'var(--axis)' : 'var(--grid)', 'stroke-width': 1 }, svg);
       el('text', { x: sx(v), y: H - 6, 'text-anchor': 'middle', class: 'axis-label' }, svg).textContent = v + '%';
     });
-    const harap = bb / 12 * 100;
     rows.forEach((r, i) => {
       const y = top + i * rowH + (rowH - barHt) / 2;
       el('text', { x: 0, y: y + 4, class: 'row-label' }, svg).textContent = r.label;
@@ -244,15 +240,13 @@
       // celah 2px warna permukaan di antara dua isian
       if (r.d > 0 && r.m - r.d > 0.5) el('rect', { x: sx(r.d), y, width: 2, height: barHt, fill: 'var(--surface)' }, svg);
       el('path', { d: barH(x0, y, sx(r.d) - x0, barHt), fill: 'var(--s-diterima)' }, svg);
-      el('line', { x1: sx(harap), x2: sx(harap), y1: y - 4, y2: y + barHt + 4, stroke: 'var(--ink)', 'stroke-width': 2 }, svg);
       el('text', { x: W, y: y + barHt - 2, 'text-anchor': 'end', class: 'val-label' }, svg).textContent = fmt(r.d) + '%';
       const hit = el('rect', { x: 0, y: top + i * rowH, width: W, height: rowH, class: 'hit' }, svg);
-      const tc = r.g.filter(k => k.status === 'tercapai').length, tt = r.g.filter(k => k.status === 'tertinggal').length;
+      const tc = r.g.filter(k => k.status === 'tercapai').length, tt = r.g.filter(k => k.status === 'belum').length;
       const html = `<b>${esc(r.label)}</b>
         <div class="t-row"><span>${sw('var(--s-diterima)')}Diterima</span><span class="num">${fmt(r.d, 1)}%</span></div>
         <div class="t-row"><span>${sw('var(--s-masuk)')}Dilaporkan</span><span class="num">${fmt(r.m, 1)}%</span></div>
-        <div class="t-row"><span>Target s.d. bulan ini</span><span class="num">${fmt(harap, 1)}%</span></div>
-        <div style="color:var(--muted);margin-top:4px">${r.n} kegiatan · ${tc} tercapai · ${tt} tertinggal</div>`;
+        <div style="color:var(--muted);margin-top:4px">${r.n} kegiatan · ${tc} tercapai · ${tt} belum ada realisasi</div>`;
       hit.addEventListener('mousemove', e => showTip(e, html));
       hit.addEventListener('mouseleave', hideTip);
       if (perResor) { hit.style.cursor = 'pointer'; hit.addEventListener('click', () => { $('f-resor').value = r.g[0].resor; $('f-resor').dispatchEvent(new Event('change')); }); }
@@ -299,13 +293,12 @@
   // ---------- Tabel kegiatan ----------
   const BADGE = {
     tercapai: '<span class="badge good"><span class="ic">✓</span>Tercapai</span>',
-    jadwal: '<span class="badge track"><span class="ic">•</span>Sesuai jadwal</span>',
-    perhatian: '<span class="badge warn"><span class="ic">!</span>Perlu perhatian</span>',
-    tertinggal: '<span class="badge crit"><span class="ic">✕</span>Tertinggal</span>'
+    berjalan: '<span class="badge track"><span class="ic">•</span>Berjalan</span>',
+    belum: '<span class="badge warn"><span class="ic">!</span>Belum ada realisasi</span>'
   };
   function renderTabel(ks) {
     const list = ks.filter(k => !statusFilter || k.status === statusFilter);
-    $('t-sub').textContent = `${list.length} kegiatan · status dibandingkan target pro-rata ${fmt(bb / 12 * 100)}%`;
+    $('t-sub').textContent = `${list.length} kegiatan · capaian dibandingkan target tahunan ${rencana.tahun}`;
     const multiResor = new Set(list.map(k => k.resor)).size > 1;
     let html = `<thead><tr>${multiResor ? '<th>Resor</th>' : ''}<th>Jenis kegiatan</th><th class="num">Target</th><th class="num">Dilaporkan</th><th class="num">Diterima</th><th>Capaian</th><th>Status</th></tr></thead><tbody>`;
     let lastInd = null;
