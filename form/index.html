@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%232f6b3b%27/%3E%3Cpath d=%27M6 24 14 10l4 6 3-4 5 12Z%27 fill=%27%23fff%27/%3E%3C/svg%3E">
+<link rel="icon" href="../assets/logo.png">
 <title>Form Laporan Kegiatan RBM</title>
 <link rel="stylesheet" href="../assets/style.css">
 </head>
 <body>
 <header class="top">
   <div class="wrap">
-    <a class="brand" href="../"><span class="brand-mark">RBM</span><span><b>Resort Based Management</b><small>Taman Nasional Tambora</small></span></a>
+    <a class="brand" href="../"><img class="brand-logo" src="../assets/logo.png" alt="Logo kantor" onerror="this.remove();document.querySelector('.brand-mark').hidden=false"><span class="brand-mark" hidden>RBM</span><span><b>Resort Based Management</b><small>Taman Nasional Tambora</small></span></a>
     <nav class="top-nav"><a href="./" aria-current="page">Form</a><a href="../dashboard/">Dashboard</a></nav>
   </div>
 </header>
@@ -79,18 +79,9 @@
           <input id="volume" type="number" min="0.01" step="any" value="1" required>
           <div class="hint" id="volume-hint">Jumlah yang dicapai dalam kegiatan ini.</div>
         </div>
-        <div class="row">
-          <div class="field">
-            <label for="lokasi">Lokasi / blok</label>
-            <input id="lokasi" type="text" maxlength="200" placeholder="mis. Blok Oi Marai, Desa Kawinda Toi">
-          </div>
-          <div class="field">
-            <label for="koordinat">Koordinat</label>
-            <div class="input-group">
-              <input id="koordinat" type="text" maxlength="60" placeholder="-8.25, 117.99">
-              <button type="button" class="btn small" id="btn-gps">Ambil</button>
-            </div>
-          </div>
+        <div class="field">
+          <label for="lokasi">Lokasi / blok</label>
+          <input id="lokasi" type="text" maxlength="200" placeholder="mis. Blok Oi Marai, Desa Kawinda Toi">
         </div>
       </fieldset>
     </div>
@@ -137,7 +128,7 @@
   const { CFG, esc } = RBM;
   const $ = id => document.getElementById(id);
   const DRAF_KEY = 'rbm-draf-' + CFG.TAHUN;
-  const ID_FIELDS = ['resor', 'petugas', 'tanggal', 'indikator', 'kegiatan', 'kegiatan_lain', 'satuan_lain', 'volume', 'lokasi', 'koordinat', 'catatan', 'revisi_dari'];
+  const ID_FIELDS = ['resor', 'petugas', 'tanggal', 'indikator', 'kegiatan', 'kegiatan_lain', 'satuan_lain', 'volume', 'lokasi', 'catatan', 'revisi_dari'];
   const store = {
     get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } },
     set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
@@ -221,16 +212,6 @@
   $('kegiatan').addEventListener('change', ubahKegiatan);
   $('catatan').addEventListener('input', () => $('catatan-n').textContent = $('catatan').value.trim().length);
 
-  // --- GPS
-  $('btn-gps').addEventListener('click', () => {
-    if (!navigator.geolocation) return tampil('warn', 'Perangkat tidak mendukung lokasi.');
-    $('btn-gps').disabled = true;
-    navigator.geolocation.getCurrentPosition(p => {
-      $('koordinat').value = p.coords.latitude.toFixed(6) + ', ' + p.coords.longitude.toFixed(6);
-      $('btn-gps').disabled = false; simpanDraf();
-    }, err => { $('btn-gps').disabled = false; tampil('warn', 'Lokasi tidak didapat: ' + esc(err.message)); }, { enableHighAccuracy: true, timeout: 15000 });
-  });
-
   // --- File bukti
   let files = [];
   const MAKS_FILE = 5, MAKS_PDF = 5 * 1024 * 1024;
@@ -281,7 +262,7 @@
     if (!d) return;
     if (d.indikator) { $('indikator').value = d.indikator; isiKegiatan(); }
     if (d.kegiatan) { $('kegiatan').value = d.kegiatan; ubahKegiatan(); }
-    ['tanggal', 'kegiatan_lain', 'satuan_lain', 'volume', 'lokasi', 'koordinat', 'catatan', 'revisi_dari'].forEach(id => { if (d[id] != null) $(id).value = d[id]; });
+    ['tanggal', 'kegiatan_lain', 'satuan_lain', 'volume', 'lokasi', 'catatan', 'revisi_dari'].forEach(id => { if (d[id] != null) $(id).value = d[id]; });
     $('catatan-n').textContent = $('catatan').value.trim().length;
     if (d.catatan || d.kegiatan) {
       $('banner-draf').innerHTML = '<strong>Draf sebelumnya dipulihkan.</strong> Periksa isian dan pilih ulang file bukti sebelum mengirim.';
@@ -340,7 +321,7 @@
         resor: $('resor').value, kode_akses: $('kode').value.trim(), petugas: $('petugas').value.trim(),
         tanggal: $('tanggal').value, indikator: $('indikator').value, kegiatan: $('kegiatan').value,
         kegiatan_lain: $('kegiatan_lain').value.trim(), satuan_lain: $('satuan_lain').value.trim(),
-        volume: Number($('volume').value), lokasi: $('lokasi').value.trim(), koordinat: $('koordinat').value.trim(),
+        volume: Number($('volume').value), lokasi: $('lokasi').value.trim(),
         catatan: $('catatan').value.trim(), revisi_dari: $('revisi_dari').value.trim(),
         bukti: await Promise.all(files.map(async f => ({ name: f.name, type: f.type, data: await keBase64(f) })))
       };
