@@ -19,6 +19,7 @@ Dashboard ◄── dashboard/ (GitHub Pages) ◄── rekap angka dari Apps Sc
 | `assets/config.js` | **Satu-satunya file yang perlu diubah:** URL Apps Script |
 | `assets/rbm.js` | Logika hitung capaian (dipakai bersama form & dashboard) |
 | `assets/style.css` | Tampilan (mode terang & gelap) |
+| `assets/logo.png` | Logo kantor (unggah sendiri; bila tidak ada, tampil tulisan "RBM") |
 | `data/Baseline_RBM_TNTambora_2026.xlsx` | Baseline asli dari kantor |
 | `data/rencana_2026.json` / `.csv` | Rencana hasil konversi (6 resor, 100 kegiatan) |
 | `scripts/excel_to_rencana.py` | Konversi Excel ke JSON/CSV/Rencana.gs |
@@ -78,11 +79,10 @@ Jangan menghapus baris laporan. Pakai status `Ditolak` supaya jejak audit tetap 
 
 - **Capaian kegiatan** = realisasi ÷ target tahunan.
 - **Capaian resor / indikator** = rata-rata capaian kegiatan, dengan setiap kegiatan dibatasi maksimal 100%. Satuan antarkegiatan berbeda, sehingga angkanya tidak bisa dijumlahkan langsung.
-- **Status kegiatan** dibandingkan dengan target pro-rata (bulan berjalan ÷ 12):
+- **Target bersifat tahunan.** Resor belum menyusun jadwal bulanan, jadi tidak ada target per bulan atau pro-rata. Status kegiatan:
   - Tercapai: ≥ 100% target tahunan
-  - Sesuai jadwal: ≥ pro-rata
-  - Perlu perhatian: ≥ 50% dari pro-rata
-  - Tertinggal: < 50% dari pro-rata
+  - Berjalan: sudah ada realisasi diterima, tetapi < 100%
+  - Belum ada realisasi: belum ada laporan yang diterima
 - **Kesesuaian dengan rencana** = porsi laporan yang jenis kegiatannya ada di rencana resor tersebut.
 
 ## Pengamanan
@@ -90,7 +90,7 @@ Jangan menghapus baris laporan. Pakai status `Ditolak` supaya jejak audit tetap 
 - Petugas tidak perlu akun. Pengirim dikendalikan dengan **kode akses per resor**: server menolak laporan bila kode tidak cocok dengan resor yang dipilih. Bila kode bocor, jalankan `gantiKodeAkses('R3')` di editor Apps Script.
 - Server hanya menerima kegiatan yang ada di rencana resor tersebut, atau kegiatan yang ditandai "di luar rencana".
 - Bukti dukung disimpan di Drive kantor dan **tidak dibagikan publik**.
-- Data yang dapat dibaca publik melalui dashboard hanya berisi ID, tanggal, resor, kode kegiatan, volume, dan status. Nama petugas, catatan, koordinat, dan bukti tidak ikut.
+- Data yang dapat dibaca publik melalui dashboard hanya berisi ID, tanggal, resor, kode kegiatan, volume, dan status. Nama petugas, catatan, lokasi, dan bukti tidak ikut.
 - Ada rem sederhana terhadap spam: maksimal 20 kiriman per resor per 10 menit.
 
 ## Ganti tahun / ubah rencana
