@@ -16,7 +16,7 @@
     return { contoh: false, diperbarui: j.diperbarui, laporan: j.laporan };
   }
 
-  /** Bulan yang sudah berjalan pada tahun rencana (untuk target pro-rata). */
+  /** Bulan yang sudah berjalan pada tahun rencana (untuk info sisa waktu & data contoh). */
   function bulanBerjalan(tahun) {
     const now = new Date();
     if (now.getFullYear() > tahun) return 12;
@@ -43,7 +43,6 @@
    * persenDiterima / persenMasuk dibatasi 100 untuk rata-rata; nilai asli tetap ada.
    */
   function hitung(rencana, laporan) {
-    const bb = bulanBerjalan(rencana.tahun);
     const perKeg = {};
     laporan.forEach(l => { (perKeg[l.kegiatan] = perKeg[l.kegiatan] || []).push(l); });
 
@@ -53,17 +52,16 @@
       const diterima = realisasi(k, semua.filter(l => DITERIMA(l.status)));
       const pD = k.target ? diterima / k.target * 100 : 0;
       const pM = k.target ? masuk / k.target * 100 : 0;
-      const harap = k.metode === 'persen' ? 100 : bb / 12 * 100; // % target yang semestinya sudah tercapai
+      // Target dihitung tahunan (belum ada jadwal bulanan dari resor).
       let status;
       if (pD >= 100) status = 'tercapai';
-      else if (pD >= harap - 1e-9) status = 'jadwal';
-      else if (pD >= harap * 0.5) status = 'perhatian';
-      else status = 'tertinggal';
+      else if (pD > 0) status = 'berjalan';
+      else status = 'belum';
       return {
         ...k, masuk, diterima,
         persenDiterima: pD, persenMasuk: pM,
         capD: Math.min(100, pD), capM: Math.min(100, pM),
-        harap, status,
+        status,
         jumlahLaporan: semua.length,
         menunggu: semua.filter(l => l.status === 'Menunggu').length
       };
