@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%232f6b3b%27/%3E%3Cpath d=%27M6 24 14 10l4 6 3-4 5 12Z%27 fill=%27%23fff%27/%3E%3C/svg%3E">
+<title>Dashboard Capaian RBM</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="../"><span class="brand-mark">RBM</span><span><b>Resort Based Management</b><small>Taman Nasional Tambora</small></span></a>
+    <nav class="top-nav"><a href="../form/">Form</a><a href="./" aria-current="page">Dashboard</a></nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <h1>Capaian pelaksanaan kegiatan <span id="tahun"></span></h1>
+  <p class="lead">Realisasi dibandingkan rencana awal tahun. Hanya laporan berstatus <strong>Diterima</strong> yang dihitung sebagai capaian.</p>
+  <div id="banner" class="banner warn hidden"></div>
+
+  <div class="filters">
+    <div class="field"><label for="f-sptn">SPTN</label><select id="f-sptn"></select></div>
+    <div class="field"><label for="f-resor">Resor</label><select id="f-resor"></select></div>
+    <div class="field"><label for="f-ind">Indikator</label><select id="f-ind"></select></div>
+    <div class="meta" id="meta"></div>
+  </div>
+
+  <section class="kpis" id="kpis" aria-label="Ringkasan"></section>
+
+  <div class="grid-2">
+    <section class="card">
+      <div class="card-head">
+        <div><h2 id="c1-title">Capaian per resor</h2><p id="c1-sub">Rata-rata % capaian per kegiatan (maks. 100% per kegiatan)</p></div>
+      </div>
+      <div class="legend" style="margin-bottom:10px">
+        <span><i class="sw" style="background:var(--s-diterima)"></i>Diterima</span>
+        <span><i class="sw" style="background:var(--s-masuk)"></i>Dilaporkan, belum diterima</span>
+        <span><i class="sw tick"></i>Target s.d. bulan ini</span>
+      </div>
+      <div id="c1"></div>
+    </section>
+    <section class="card">
+      <div class="card-head">
+        <div><h2>Laporan masuk per bulan</h2><p>Menurut tanggal pelaksanaan · laporan ditolak tidak ditampilkan</p></div>
+      </div>
+      <div class="legend" style="margin-bottom:10px">
+        <span><i class="sw" style="background:var(--s-diterima)"></i>Diterima</span>
+        <span><i class="sw" style="background:var(--s-masuk)"></i>Menunggu / revisi</span>
+      </div>
+      <div id="c2"></div>
+    </section>
+  </div>
+
+  <section class="card">
+    <div class="card-head">
+      <div><h2>Rincian per kegiatan</h2><p id="t-sub"></p></div>
+      <div class="seg" role="group" aria-label="Saring status" id="seg" style="margin-left:auto">
+        <button aria-pressed="true" data-s="">Semua</button>
+        <button aria-pressed="false" data-s="tertinggal">Tertinggal</button>
+        <button aria-pressed="false" data-s="perhatian">Perlu perhatian</button>
+        <button aria-pressed="false" data-s="tercapai">Tercapai</button>
+      </div>
+    </div>
+    <div class="table-wrap"><table id="tbl"></table></div>
+  </section>
+
+  <div class="grid-2" style="margin-top:16px">
+    <section class="card">
+      <div class="card-head"><div><h2>Status verifikasi</h2><p>Jumlah laporan per resor</p></div></div>
+      <div class="table-wrap"><table id="tbl-ver"></table></div>
+    </section>
+    <section class="card">
+      <div class="card-head"><div><h2>Kegiatan di luar rencana</h2><p>Dicatat, tidak dihitung dalam capaian</p></div></div>
+      <div class="table-wrap"><table id="tbl-luar"></table></div>
+    </section>
+  </div>
+
+  <footer class="foot" id="foot"></footer>
+</main>
+<div class="tooltip" id="tip" role="tooltip"></div>
+
+<script src="../assets/config.js"></script>
+<script src="../assets/rbm.js"></script>
+<script>
+(async function () {
+  const { esc, fmt, rata, BULAN } = RBM;
+  const $ = id => document.getElementById(id);
+  const NS = 'http://www.w3.org/2000/svg';
+  const tip = $('tip');
+
+  let rencana, data;
+  try {
+    rencana = await RBM.muatRencana();
+    data = await RBM.muatLaporan(rencana);
+  } catch (e) {
+    $('banner').className = 'banner err'; $('banner').innerHTML = '<strong>Data tidak bisa dimuat.</strong> ' + esc(e.message); return;
+  }
+  if (data.contoh) {
+    $('banner').innerHTML = '<strong>Mode contoh.</strong> Angka di bawah adalah data acak untuk melihat tampilan. Hubungkan <code>API_URL</code> di <code>assets/config.js</code> untuk data asli.';
+    $('banner').classList.remove('hidden');
+  }
+
+  const resorById = Object.fromEntries(rencana.resor.map(r => [r.id, r]));
+  const singkat = n => n.replace(/^Resor\s+/, '');
+  const indSingkat = i => ({
+    'Perlindungan dan Pengamanan Kawasan': 'Perlindungan & Pengamanan',
+    'Penyuluhan dan Pemberdayaan Masyarakat': 'Penyuluhan & Pemberdayaan',
+    'Keanekaragaman Hayati dan Ekosistem': 'Kehati & Ekosistem',
+    'Umum/ Pelayanan Publik (Wisata)': 'Umum / Pelayanan Publik'
+  }[i] || i);
+  const bb = RBM.bulanBerjalan(rencana.tahun);
+  const semuaKeg = RBM.hitung(rencana, data.laporan);
+
+  $('tahun').textContent = rencana.tahun;
+  $('meta').innerHTML = `Data per ${new Date(data.diperbarui).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}<br>Target pro-rata: ${bb} dari 12 bulan (${fmt(bb / 12 * 100)}%)`;
+  $('foot').innerHTML = `Sumber rencana: ${esc(rencana.sumber)} · ${rencana.kegiatan.length} kegiatan di ${rencana.resor.length} resor. ` +
+    'Capaian resor = rata-rata capaian setiap kegiatan (tiap kegiatan bobotnya sama, maksimal 100%), karena satuan target berbeda-beda.';
+
+  // ---------- filter ----------
+  const sptnList = [...new Set(rencana.resor.map(r => r.sptn))];
+  $('f-sptn').innerHTML = '<option value="">Semua SPTN</option>' + sptnList.map(s => `<option>${esc(s)}</option>`).join('');
+  $('f-ind').innerHTML = '<option value="">Semua indikator</option>' + rencana.indikator.map(i => `<option value="${esc(i)}">${esc(indSingkat(i))}</option>`).join('');
+  function isiResor() {
+    const s = $('f-sptn').value, cur = $('f-resor').value;
+    const list = rencana.resor.filter(r => !s || r.sptn === s);
+    $('f-resor').innerHTML = '<option value="">Semua resor</option>' + list.map(r => `<option value="${r.id}">${esc(r.nama)}</option>`).join('');
+    if (list.some(r => r.id === cur)) $('f-resor').value = cur;
+  }
+  isiResor();
+  let statusFilter = '';
+  const st = (() => { try { return JSON.parse(localStorage.getItem('rbm-dash-filter')) || {}; } catch (e) { return {}; } })();
+  if (st.sptn) { $('f-sptn').value = st.sptn; isiResor(); }
+  if (st.resor) $('f-resor').value = st.resor;
+  if (st.ind) $('f-ind').value = st.ind;
+
+  ['f-sptn', 'f-resor', 'f-ind'].forEach(id => $(id).addEventListener('change', () => {
+    if (id === 'f-sptn') isiResor();
+    try { localStorage.setItem('rbm-dash-filter', JSON.stringify({ sptn: $('f-sptn').value, resor: $('f-resor').value, ind: $('f-ind').value })); } catch (e) {}
+    render();
+  }));
+  $('seg').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    statusFilter = b.dataset.s;
+    [...$('seg').children].forEach(x => x.setAttribute('aria-pressed', x === b));
+    renderTabel(filtered());
+  });
+
+  function resorAktif() {
+    const s = $('f-sptn').value, r = $('f-resor').value;
+    return rencana.resor.filter(x => (!s || x.sptn === s) && (!r || x.id === r)).map(x => x.id);
+  }
+  function filtered() {
+    const rs = new Set(resorAktif()), ind = $('f-ind').value;
+    return semuaKeg.filter(k => rs.has(k.resor) && (!ind || k.indikator === ind));
+  }
+  function laporanAktif() {
+    const rs = new Set(resorAktif()), ind = $('f-ind').value;
+    const kegInd = Object.fromEntries(rencana.kegiatan.map(k => [k.id, k.indikator]));
+    return data.laporan.filter(l => rs.has(l.resor) && (!ind || kegInd[l.kegiatan] === ind || (l.kegiatan === 'LUAR-RENCANA' && !ind)));
+  }
+
+  // ---------- tooltip ----------
+  function showTip(ev, html) {
+    tip.innerHTML = html; tip.classList.add('show');
+    const pad = 14, w = tip.offsetWidth, h = tip.offsetHeight;
+    let x = ev.clientX + pad, y = ev.clientY + pad;
+    if (x + w > innerWidth - 8) x = ev.clientX - w - pad;
+    if (y + h > innerHeight - 8) y = ev.clientY - h - pad;
+    tip.style.left = x + 'px'; tip.style.top = y + 'px';
+  }
+  const hideTip = () => tip.classList.remove('show');
+  const el = (tag, attrs, parent) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); if (parent) parent.appendChild(n); return n; };
+  // batang dengan ujung data membulat 4px, pangkal rata
+  const barH = (x, y, w, h, r = 4) => {
+    if (w <= 0) return '';
+    r = Math.min(r, w, h / 2);
+    return `M${x},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h - r}Q${x + w},${y + h} ${x + w - r},${y + h}H${x}Z`;
+  };
+  const barV = (x, y, w, h, r = 4) => {
+    if (h <= 0) return '';
+    r = Math.min(r, h, w / 2);
+    return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`;
+  };
+  const sw = c => `<i class="sw" style="background:${c}"></i>`;
+
+  // ---------- KPI ----------
+  function renderKpi(ks, laps) {
+    const capD = rata(ks.map(k => k.capD)), capM = rata(ks.map(k => k.capM));
+    const harap = bb / 12 * 100;
+    const tercapai = ks.filter(k => k.status === 'tercapai').length;
+    const tertinggal = ks.filter(k => k.status === 'tertinggal').length;
+    const menunggu = laps.filter(l => l.status === 'Menunggu').length;
+    const revisi = laps.filter(l => l.status === 'Revisi').length;
+    const luar = laps.filter(l => l.kegiatan === 'LUAR-RENCANA');
+    const masukTotal = laps.length;
+    const sesuaiPct = masukTotal ? (masukTotal - luar.length) / masukTotal * 100 : 0;
+    const selisih = capD - harap;
+    $('kpis').innerHTML = `
+      <div class="kpi"><div class="k-label">Capaian terverifikasi</div><div class="k-value">${fmt(capD)}%</div>
+        <div class="k-sub">${selisih >= 0 ? '' : fmt(-selisih) + ' poin di bawah '}target pro-rata ${fmt(harap)}%${selisih >= 0 ? ' terlampaui' : ''} · dilaporkan ${fmt(capM)}%</div></div>
+      <div class="kpi"><div class="k-label">Kegiatan tercapai</div><div class="k-value">${tercapai} <span style="font-size:16px;color:var(--muted);font-weight:500">/ ${ks.length}</span></div>
+        <div class="k-sub">${tertinggal} kegiatan tertinggal dari jadwal</div></div>
+      <div class="kpi"><div class="k-label">Menunggu verifikasi</div><div class="k-value">${menunggu}</div>
+        <div class="k-sub">${revisi} laporan perlu revisi</div></div>
+      <div class="kpi"><div class="k-label">Kesesuaian dengan rencana</div><div class="k-value">${fmt(sesuaiPct)}%</div>
+        <div class="k-sub">${masukTotal - luar.length} dari ${masukTotal} laporan · ${luar.length} di luar rencana</div></div>`;
+  }
+
+  // ---------- Chart 1: bullet bars ----------
+  function renderC1(ks) {
+    const box = $('c1'); box.innerHTML = '';
+    const perResor = !$('f-resor').value;
+    let rows;
+    if (perResor) {
+      $('c1-title').textContent = 'Capaian per resor';
+      rows = resorAktif().map(rid => {
+        const g = ks.filter(k => k.resor === rid);
+        return { label: singkat(resorById[rid].nama), sub: resorById[rid].sptn.replace('SPTN Wilayah ', 'SPTN '), d: rata(g.map(k => k.capD)), m: rata(g.map(k => k.capM)), n: g.length, g };
+      }).filter(r => r.n);
+    } else {
+      $('c1-title').textContent = 'Capaian per indikator · ' + singkat(resorById[$('f-resor').value].nama);
+      rows = rencana.indikator.map(i => {
+        const g = ks.filter(k => k.indikator === i);
+        return { label: indSingkat(i), sub: g.length + ' kegiatan', d: rata(g.map(k => k.capD)), m: rata(g.map(k => k.capM)), n: g.length, g };
+      }).filter(r => r.n);
+    }
+    if (!rows.length) { box.innerHTML = '<p class="lead">Tidak ada kegiatan untuk filter ini.</p>'; return; }
+    const W = Math.max(300, box.clientWidth), labelW = W < 420 ? 110 : 170, valW = 48, rowH = 46, barHt = 14, top = 6;
+    const H = top + rows.length * rowH + 22;
+    const x0 = labelW, x1 = W - valW, sx = v => x0 + (x1 - x0) * v / 100;
+    const svg = el('svg', { class: 'chart', viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: 'img', 'aria-label': 'Capaian per baris' }, box);
+    [0, 25, 50, 75, 100].forEach(v => {
+      el('line', { x1: sx(v), x2: sx(v), y1: top, y2: H - 20, stroke: v === 0 ? 'var(--axis)' : 'var(--grid)', 'stroke-width': 1 }, svg);
+      el('text', { x: sx(v), y: H - 6, 'text-anchor': 'middle', class: 'axis-label' }, svg).textContent = v + '%';
+    });
+    const harap = bb / 12 * 100;
+    rows.forEach((r, i) => {
+      const y = top + i * rowH + (rowH - barHt) / 2;
+      el('text', { x: 0, y: y + 4, class: 'row-label' }, svg).textContent = r.label;
+      el('text', { x: 0, y: y + 19, class: 'row-sub' }, svg).textContent = r.sub;
+      el('path', { d: barH(x0, y, sx(r.m) - x0, barHt), fill: 'var(--s-masuk)' }, svg);
+      // celah 2px warna permukaan di antara dua isian
+      if (r.d > 0 && r.m - r.d > 0.5) el('rect', { x: sx(r.d), y, width: 2, height: barHt, fill: 'var(--surface)' }, svg);
+      el('path', { d: barH(x0, y, sx(r.d) - x0, barHt), fill: 'var(--s-diterima)' }, svg);
+      el('line', { x1: sx(harap), x2: sx(harap), y1: y - 4, y2: y + barHt + 4, stroke: 'var(--ink)', 'stroke-width': 2 }, svg);
+      el('text', { x: W, y: y + barHt - 2, 'text-anchor': 'end', class: 'val-label' }, svg).textContent = fmt(r.d) + '%';
+      const hit = el('rect', { x: 0, y: top + i * rowH, width: W, height: rowH, class: 'hit' }, svg);
+      const tc = r.g.filter(k => k.status === 'tercapai').length, tt = r.g.filter(k => k.status === 'tertinggal').length;
+      const html = `<b>${esc(r.label)}</b>
+        <div class="t-row"><span>${sw('var(--s-diterima)')}Diterima</span><span class="num">${fmt(r.d, 1)}%</span></div>
+        <div class="t-row"><span>${sw('var(--s-masuk)')}Dilaporkan</span><span class="num">${fmt(r.m, 1)}%</span></div>
+        <div class="t-row"><span>Target s.d. bulan ini</span><span class="num">${fmt(harap, 1)}%</span></div>
+        <div style="color:var(--muted);margin-top:4px">${r.n} kegiatan · ${tc} tercapai · ${tt} tertinggal</div>`;
+      hit.addEventListener('mousemove', e => showTip(e, html));
+      hit.addEventListener('mouseleave', hideTip);
+      if (perResor) { hit.style.cursor = 'pointer'; hit.addEventListener('click', () => { $('f-resor').value = r.g[0].resor; $('f-resor').dispatchEvent(new Event('change')); }); }
+    });
+    $('c1-sub').textContent = perResor ? 'Rata-rata % capaian per kegiatan · klik baris untuk rincian resor' : 'Rata-rata % capaian per kegiatan dalam indikator';
+  }
+
+  // ---------- Chart 2: stacked columns per bulan ----------
+  function renderC2(laps) {
+    const box = $('c2'); box.innerHTML = '';
+    const nb = Math.max(bb, 1);
+    const per = Array.from({ length: 12 }, (_, i) => ({ b: i + 1, d: 0, w: 0 }));
+    laps.forEach(l => {
+      if (l.status === 'Ditolak' || !l.bulan) return;
+      if (l.status === 'Diterima') per[l.bulan - 1].d++; else per[l.bulan - 1].w++;
+    });
+    const W = Math.max(300, box.clientWidth), H = 250, left = 34, bottom = 24, top = 10, right = 4;
+    const max = Math.max(5, ...per.map(p => p.d + p.w));
+    const step = max <= 10 ? 2 : max <= 25 ? 5 : max <= 60 ? 10 : max <= 150 ? 25 : 50;
+    const yMax = Math.ceil(max / step) * step;
+    const sy = v => top + (H - top - bottom) * (1 - v / yMax);
+    const band = (W - left - right) / 12, bw = Math.min(26, band * 0.62);
+    const svg = el('svg', { class: 'chart', viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: 'img', 'aria-label': 'Laporan per bulan' }, box);
+    for (let v = 0; v <= yMax; v += step) {
+      el('line', { x1: left, x2: W - right, y1: sy(v), y2: sy(v), stroke: v === 0 ? 'var(--axis)' : 'var(--grid)', 'stroke-width': 1 }, svg);
+      el('text', { x: left - 6, y: sy(v) + 4, 'text-anchor': 'end', class: 'axis-label' }, svg).textContent = v;
+    }
+    per.forEach((p, i) => {
+      const cx = left + band * i + band / 2, x = cx - bw / 2;
+      el('text', { x: cx, y: H - 6, 'text-anchor': 'middle', class: 'axis-label', opacity: p.b > nb ? 0.5 : 1 }, svg).textContent = BULAN[i];
+      const yD = sy(p.d), yT = sy(p.d + p.w);
+      if (p.d) el('path', { d: p.w ? `M${x},${sy(0)}V${yD}H${x + bw}V${sy(0)}Z` : barV(x, yD, bw, sy(0) - yD), fill: 'var(--s-diterima)' }, svg);
+      if (p.w) el('path', { d: barV(x, yT, bw, (p.d ? yD - 2 : sy(0)) - yT), fill: 'var(--s-masuk)' }, svg);
+      const hit = el('rect', { x: left + band * i, y: top, width: band, height: H - top - bottom, class: 'hit' }, svg);
+      const html = `<b>${BULAN[i]} ${rencana.tahun}</b>
+        <div class="t-row"><span>${sw('var(--s-diterima)')}Diterima</span><span class="num">${p.d}</span></div>
+        <div class="t-row"><span>${sw('var(--s-masuk)')}Menunggu / revisi</span><span class="num">${p.w}</span></div>
+        <div class="t-row"><span>Total</span><span class="num">${p.d + p.w}</span></div>`;
+      hit.addEventListener('mousemove', e => showTip(e, html));
+      hit.addEventListener('mouseleave', hideTip);
+    });
+  }
+
+  // ---------- Tabel kegiatan ----------
+  const BADGE = {
+    tercapai: '<span class="badge good"><span class="ic">✓</span>Tercapai</span>',
+    jadwal: '<span class="badge track"><span class="ic">•</span>Sesuai jadwal</span>',
+    perhatian: '<span class="badge warn"><span class="ic">!</span>Perlu perhatian</span>',
+    tertinggal: '<span class="badge crit"><span class="ic">✕</span>Tertinggal</span>'
+  };
+  function renderTabel(ks) {
+    const list = ks.filter(k => !statusFilter || k.status === statusFilter);
+    $('t-sub').textContent = `${list.length} kegiatan · status dibandingkan target pro-rata ${fmt(bb / 12 * 100)}%`;
+    const multiResor = new Set(list.map(k => k.resor)).size > 1;
+    let html = `<thead><tr>${multiResor ? '<th>Resor</th>' : ''}<th>Jenis kegiatan</th><th class="num">Target</th><th class="num">Dilaporkan</th><th class="num">Diterima</th><th>Capaian</th><th>Status</th></tr></thead><tbody>`;
+    let lastInd = null;
+    const urut = list.slice().sort((a, b) => rencana.indikator.indexOf(a.indikator) - rencana.indikator.indexOf(b.indikator) || (a.resor < b.resor ? -1 : a.resor > b.resor ? 1 : 0) || (a.id < b.id ? -1 : 1));
+    urut.forEach(k => {
+      if (k.indikator !== lastInd) { html += `<tr class="group"><td colspan="${multiResor ? 7 : 6}">${esc(k.indikator)}</td></tr>`; lastInd = k.indikator; }
+      const sat = k.metode === 'persen' ? '%' : ' ' + esc(k.satuan.toLowerCase());
+      html += `<tr>${multiResor ? `<td>${esc(singkat(resorById[k.resor].nama))}</td>` : ''}
+        <td>${esc(k.kegiatan)}${k.menunggu ? ` <span style="color:var(--muted);font-size:12px">· ${k.menunggu} menunggu</span>` : ''}</td>
+        <td class="num">${fmt(k.target)}${sat}</td><td class="num">${fmt(k.masuk, 1)}</td><td class="num">${fmt(k.diterima, 1)}</td>
+        <td><div class="mini" title="Diterima ${fmt(k.persenDiterima, 1)}% · dilaporkan ${fmt(k.persenMasuk, 1)}%"><div class="track"><div class="fill-m" style="width:${k.capM}%"></div><div class="fill-d" style="width:${k.capD}%"></div></div><span class="pct">${fmt(k.persenDiterima)}%</span></div></td>
+        <td>${BADGE[k.status]}</td></tr>`;
+    });
+    if (!list.length) html += `<tr><td colspan="7" style="color:var(--muted)">Tidak ada kegiatan dengan status ini.</td></tr>`;
+    $('tbl').innerHTML = html + '</tbody>';
+  }
+
+  // ---------- Status verifikasi & luar rencana ----------
+  function renderVer(laps) {
+    const S = ['Diterima', 'Menunggu', 'Revisi', 'Ditolak'];
+    let html = '<thead><tr><th>Resor</th>' + S.map(s => `<th class="num">${s}</th>`).join('') + '<th class="num">Total</th></tr></thead><tbody>';
+    const tot = Object.fromEntries(S.map(s => [s, 0]));
+    resorAktif().forEach(rid => {
+      const g = laps.filter(l => l.resor === rid);
+      html += `<tr><td>${esc(singkat(resorById[rid].nama))}</td>` + S.map(s => { const n = g.filter(l => l.status === s).length; tot[s] += n; return `<td class="num">${n}</td>`; }).join('') + `<td class="num">${g.length}</td></tr>`;
+    });
+    html += `<tr><td><strong>Total</strong></td>` + S.map(s => `<td class="num"><strong>${tot[s]}</strong></td>`).join('') + `<td class="num"><strong>${laps.length}</strong></td></tr>`;
+    $('tbl-ver').innerHTML = html + '</tbody>';
+
+    const luar = laps.filter(l => l.kegiatan === 'LUAR-RENCANA').sort((a, b) => a.tanggal < b.tanggal ? 1 : -1);
+    $('tbl-luar').innerHTML = luar.length
+      ? '<thead><tr><th>Tanggal</th><th>Resor</th><th>Kegiatan</th><th>Status</th></tr></thead><tbody>' +
+        luar.map(l => `<tr><td style="white-space:nowrap">${esc(l.tanggal)}</td><td>${esc(singkat(resorById[l.resor] ? resorById[l.resor].nama : l.resor))}</td><td>${esc(l.nama_kegiatan)}</td><td>${esc(l.status)}</td></tr>`).join('') + '</tbody>'
+      : '<tbody><tr><td style="color:var(--muted)">Belum ada.</td></tr></tbody>';
+  }
+
+  function render() {
+    const ks = filtered(), laps = laporanAktif();
+    renderKpi(ks, laps); renderC1(ks); renderC2(laps); renderTabel(ks); renderVer(laps);
+  }
+  render();
+  let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { const ks = filtered(); renderC1(ks); renderC2(laporanAktif()); }, 150); });
+})();
+</script>
+</body>
+</html>
