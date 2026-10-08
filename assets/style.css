@@ -241,7 +241,7 @@ tr.group td { background: var(--surface-2); font-weight: 600; font-size: 12.5px;
 
 footer.foot { color: var(--muted); font-size: 12.5px; padding: 28px 0 40px; }
 
-.home-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 8px; }
+.home-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-top: 8px; }
 @media (max-width: 640px) { .home-grid { grid-template-columns: 1fr; } }
 .home-card { text-decoration: none; color: inherit; display: block; transition: border-color .12s; }
 .home-card:hover { border-color: var(--accent); }
