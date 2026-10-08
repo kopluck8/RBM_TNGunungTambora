@@ -6,7 +6,7 @@
  *
  * Langkah singkat (detail di README.md):
  *   1. Buat Google Sheets baru → Ekstensi → Apps Script.
- *   2. Tempel Code.gs dan Rencana.gs.
+ *   2. Tempel Code.gs, Rencana.gs, dan LaporanBulanan.gs.
  *   3. Jalankan fungsi setup() sekali → izinkan akses → lihat kode akses resor di sheet "Pengaturan".
  *   4. Terapkan → Deployment baru → Aplikasi web
  *        Jalankan sebagai : Saya (akun kantor)
@@ -74,6 +74,7 @@ function setup() {
     }
   });
   tulisPengaturan_();
+  setupLaporanBulanan(); // sheet Pengesahan & folder laporan bulanan (LaporanBulanan.gs)
   Logger.log('Setup selesai. Kode akses ada di sheet "Pengaturan".');
 }
 
@@ -87,7 +88,7 @@ function tulisPengaturan_() {
   Object.keys(RENCANA.resor).forEach(function (rid) {
     sh.appendRow([rid, RENCANA.resor[rid], props.getProperty('KODE_' + rid)]);
   });
-  sh.appendRow([]);
+  sh.appendRow(['']); // baris pemisah (appendRow menolak array kosong)
   sh.appendRow(['Folder bukti', 'https://drive.google.com/drive/folders/' + props.getProperty('BUKTI_FOLDER_ID')]);
   sh.appendRow(['Catatan', 'Ganti kode: jalankan gantiKodeAkses("R1") di editor Apps Script.']);
   sh.getRange(1, 1, 1, 3).setFontWeight('bold');
@@ -112,6 +113,7 @@ function onEdit(e) {
 function doPost(e) {
   try {
     var d = JSON.parse(e.postData.contents);
+    if (d && d.aksi === 'laporan_bulanan') return json_(laporanBulananWeb_(d)); // lihat LaporanBulanan.gs
     var err = validasi_(d);
     if (err) return json_({ ok: false, error: err });
 
