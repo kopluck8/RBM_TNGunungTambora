@@ -49,8 +49,9 @@
         <legend>2. Kegiatan</legend>
         <div class="field">
           <label for="tanggal">Tanggal pelaksanaan <span class="req">*</span></label>
-          <input id="tanggal" type="date" required>
-          <div class="hint">Tanggal kegiatan dilaksanakan, bukan tanggal pengisian.</div>
+          <input id="tanggal" type="date" required aria-describedby="tanggal-kata">
+          <div id="tanggal-kata" class="target-info hidden" aria-live="polite"></div>
+          <div class="hint">Tanggal kegiatan dilaksanakan, bukan tanggal pengisian. Pastikan nama bulan yang tertulis di atas sudah benar.</div>
         </div>
         <div class="field">
           <label for="indikator">Indikator kinerja <span class="req">*</span></label>
@@ -158,6 +159,24 @@
   const iso = d => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
   $('tanggal').min = rencana.tahun + '-01-01';
   $('tanggal').max = today.getFullYear() > rencana.tahun ? rencana.tahun + '-12-31' : iso(today);
+
+  // Tanggal ditulis dengan kata agar urutan hari/bulan tidak tertukar (format kolom tanggal mengikuti bahasa browser)
+  const HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+  const NAMA_BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+  function tanggalKata(isoStr) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoStr || '');
+    if (!m) return '';
+    const d = new Date(+m[1], +m[2] - 1, +m[3]);
+    return `${HARI[d.getDay()]}, ${+m[3]} ${NAMA_BULAN[+m[2] - 1]} ${m[1]}`;
+  }
+  function tulisTanggal() {
+    const el = $('tanggal-kata'), v = $('tanggal').value;
+    if (!v) { el.classList.add('hidden'); el.textContent = ''; return; }
+    el.innerHTML = `Tanggal pelaksanaan: <strong>${tanggalKata(v)}</strong><br>Laporan ini akan masuk ke laporan bulanan <strong>${NAMA_BULAN[+v.slice(5, 7) - 1]} ${v.slice(0, 4)}</strong>.`;
+    el.classList.remove('hidden');
+  }
+  $('tanggal').addEventListener('input', tulisTanggal);
+  $('tanggal').addEventListener('change', tulisTanggal);
 
   function isiIndikator() {
     const rid = $('resor').value;
@@ -272,11 +291,12 @@
   let t; $('f').addEventListener('input', () => { clearTimeout(t); t = setTimeout(simpanDraf, 400); });
   $('f').addEventListener('change', () => { clearTimeout(t); t = setTimeout(simpanDraf, 100); });
   pulihkanDraf();
+  tulisTanggal();
 
   $('btn-reset').addEventListener('click', () => {
     if (!confirm('Kosongkan semua isian?')) return;
     store.del(DRAF_KEY); const resor = $('resor').value, pet = $('petugas').value;
-    $('f').reset(); files = []; gambarFile();
+    $('f').reset(); files = []; gambarFile(); tulisTanggal();
     $('resor').value = resor; $('petugas').value = pet; isiIndikator();
     $('banner-draf').classList.add('hidden'); $('pesan').classList.add('hidden'); $('draf-info').textContent = '';
   });
@@ -293,7 +313,7 @@
     if (!v('kode')) e.push('Isi kode akses resor.');
     if (v('petugas').length < 3) e.push('Isi nama petugas.');
     if (!v('tanggal')) e.push('Isi tanggal pelaksanaan.');
-    else if (v('tanggal') < $('tanggal').min || v('tanggal') > $('tanggal').max) e.push('Tanggal harus antara ' + $('tanggal').min + ' dan ' + $('tanggal').max + '.');
+    else if (v('tanggal') < $('tanggal').min || v('tanggal') > $('tanggal').max) e.push('Tanggal harus antara ' + tanggalKata($('tanggal').min) + ' dan ' + tanggalKata($('tanggal').max) + '.');
     if (!v('kegiatan')) e.push('Pilih jenis kegiatan.');
     if (v('kegiatan') === 'LUAR-RENCANA' && v('kegiatan_lain').length < 5) e.push('Isi nama kegiatan di luar rencana.');
     const vol = Number(v('volume'));
@@ -338,10 +358,10 @@
 
       store.set('rbm-pelapor', { resor: payload.resor, petugas: payload.petugas });
       store.del(DRAF_KEY);
-      tampil('ok', `<strong>Laporan terkirim.</strong> Nomor laporan: <strong>${esc(j.id)}</strong>. Simpan nomor ini; status awal <em>Menunggu verifikasi</em>.` +
+      tampil('ok', `<strong>Laporan terkirim.</strong> Nomor laporan: <strong>${esc(j.id)}</strong> (kegiatan ${tanggalKata(payload.tanggal)}). Simpan nomor ini; status awal <em>Menunggu verifikasi</em>.` +
         (j.sesuai === 'Tidak' ? '<br>Kegiatan dicatat sebagai di luar rencana.' : ''));
       const resor = $('resor').value, pet = $('petugas').value, kode = $('kode').value;
-      $('f').reset(); files = []; gambarFile();
+      $('f').reset(); files = []; gambarFile(); tulisTanggal();
       $('resor').value = resor; $('petugas').value = pet; $('kode').value = kode; isiIndikator();
       $('catatan-n').textContent = '0'; $('banner-draf').classList.add('hidden'); $('draf-info').textContent = '';
     } catch (e) {
