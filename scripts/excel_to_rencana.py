@@ -123,7 +123,9 @@ def main():
     gs_data = {
         "tahun": tahun,
         "resor": {r["id"]: r["nama"] for r in resor_map.values()},
-        "kegiatan": {k["id"]: {"resor": k["resor"], "indikator": k["indikator"], "nama": k["kegiatan"], "satuan": k["satuan"], "metode": k["metode"]} for k in kegiatan},
+        "sptn": {r["id"]: r["sptn"] for r in resor_map.values()},
+        "indikator": indikator_urut,
+        "kegiatan": {k["id"]: {"resor": k["resor"], "indikator": k["indikator"], "nama": k["kegiatan"], "target": k["target"], "satuan": k["satuan"], "metode": k["metode"]} for k in kegiatan},
     }
     gpath = ROOT / "apps-script/Rencana.gs"
     gpath.parent.mkdir(exist_ok=True)
