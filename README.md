@@ -7,6 +7,7 @@ Petugas resor ──► form/ (GitHub Pages) ──► Google Apps Script ──
                                                          └──────► Google Drive (bukti dukung)
 Verifikator ubah kolom Status di Sheets (Diterima / Revisi / Ditolak)
 Dashboard ◄── dashboard/ (GitHub Pages) ◄── rekap angka dari Apps Script (tanpa data pribadi)
+Resor ──► laporan/ (kode akses) ──► Apps Script ──► template Google Docs ──► PDF laporan bulanan
 ```
 
 ## Isi repository
@@ -16,6 +17,7 @@ Dashboard ◄── dashboard/ (GitHub Pages) ◄── rekap angka dari Apps Sc
 | `index.html` | Halaman awal |
 | `form/index.html` | Form laporan untuk petugas resor |
 | `dashboard/index.html` | Dashboard capaian |
+| `laporan/index.html` | Unduh PDF laporan bulanan untuk resor |
 | `assets/config.js` | **Satu-satunya file yang perlu diubah:** URL Apps Script |
 | `assets/rbm.js` | Logika hitung capaian (dipakai bersama form & dashboard) |
 | `assets/style.css` | Tampilan (mode terang & gelap) |
@@ -25,6 +27,9 @@ Dashboard ◄── dashboard/ (GitHub Pages) ◄── rekap angka dari Apps Sc
 | `scripts/excel_to_rencana.py` | Konversi Excel ke JSON/CSV/Rencana.gs |
 | `apps-script/Code.gs` | Backend: menerima laporan, menyimpan bukti, menyajikan rekap |
 | `apps-script/Rencana.gs` | Salinan rencana untuk validasi di server (dibuat otomatis) |
+| `apps-script/LaporanBulanan.gs` | Pembuat PDF laporan bulanan + menu **RBM** di Sheets |
+| `templates/Template_Laporan_Bulanan_RBM.docx` | Template laporan bulanan (kop, cover, pengesahan) berisi placeholder `{{...}}` |
+| `scripts/buat_template_laporan.py` | Membuat ulang template dari format asli kantor |
 
 ## Pemasangan (sekali saja)
 
@@ -32,7 +37,7 @@ Dashboard ◄── dashboard/ (GitHub Pages) ◄── rekap angka dari Apps Sc
 
 1. Buat **Google Sheets** baru, misalnya "Laporan RBM 2026".
 2. Buka menu **Ekstensi → Apps Script**.
-3. Tempel isi `apps-script/Code.gs` ke file `Code.gs`. Lalu tambah file baru bernama `Rencana`, dan tempel isi `apps-script/Rencana.gs`.
+3. Tempel isi `apps-script/Code.gs` ke file `Code.gs`. Lalu tambah file baru bernama `Rencana` dan tempel isi `apps-script/Rencana.gs`, serta file `LaporanBulanan` dengan isi `apps-script/LaporanBulanan.gs`.
 4. Di **Setelan proyek (ikon roda gigi)**, ubah **Zona waktu** ke `(GMT+08:00) Makassar`.
 5. Pilih fungsi `setup`, klik **Jalankan**, lalu izinkan akses ke Sheets dan Drive.
    Hasilnya:
@@ -85,6 +90,46 @@ Jangan menghapus baris laporan. Pakai status `Ditolak` supaya jejak audit tetap 
   - Belum ada realisasi: belum ada laporan yang diterima
 - **Kesesuaian dengan rencana** = porsi laporan yang jenis kegiatannya ada di rencana resor tersebut.
 
+## Laporan bulanan (PDF)
+
+PDF dibuat per resor per bulan dan hanya memuat laporan berstatus **Diterima**. Isinya berurutan:
+
+1. **Cover**: kop surat, nama resor, SPTN, dan periode.
+2. **Lembar pengesahan**:
+   - Kepala Resor (nama dan NIP diketik oleh resor saat mengunduh);
+   - *Menilai*: Kepala SPTN, terisi otomatis sesuai resor;
+   - *Mengetahui*: Kepala Balai.
+3. **Isi laporan**:
+   - A. Ringkasan;
+   - B. Rekapitulasi capaian terhadap target tahunan (bulan ini dan kumulatif);
+   - C. Uraian kegiatan bulan ini.
+4. **Lampiran dokumentasi** per jenis kegiatan. Foto ditempel langsung di lampiran. PDF bukti dukung ditulis sebagai tautan Drive, dan tautan itu hanya bisa dibuka oleh akun kantor.
+
+### Pemasangan (sekali saja, setelah langkah A)
+
+1. Tempel `apps-script/LaporanBulanan.gs` sebagai file baru `LaporanBulanan`, dan ganti `Rencana.gs` dengan versi terbaru (sekarang berisi target dan SPTN).
+2. Jalankan fungsi `setupLaporanBulanan`, lalu izinkan akses ke Google Docs. Fungsi ini membuat:
+   - sheet **Pengesahan** berisi nama dan NIP Kepala Balai serta Kepala SPTN;
+   - folder Drive **"Laporan Bulanan RBM 2026"**.
+3. Unggah `templates/Template_Laporan_Bulanan_RBM.docx` ke Google Drive kantor. Klik kanan file itu, pilih **Buka dengan → Google Dokumen**, lalu salin URL dokumen Google Docs yang terbuka.
+4. Tempel URL tersebut di sheet **Pengesahan**, kolom B baris **TEMPLATE**.
+5. Buka **Terapkan → Kelola deployment → Edit → Versi baru**.
+6. Muat ulang Google Sheets. Menu **RBM** akan muncul.
+
+### Cara pakai
+
+- **Resor**: buka `.../laporan/`, lalu isi resor, kode akses, bulan, nama dan NIP Kepala Resor, tempat, serta dasar. Setelah itu PDF terunduh. Dalam 10 menit, setiap resor bisa membuat paling banyak 5 PDF.
+- **Verifikator**: di Google Sheets, pilih menu **RBM → Buat laporan bulanan (PDF)…**. Hasilnya berupa link PDF dan versi Google Docs yang masih bisa disunting sebelum dicetak.
+- Semua hasil tersimpan di folder **Laporan Bulanan RBM 2026 / <Resor>**. Bila laporan bulan yang sama dibuat ulang, versi lama dipindahkan ke Sampah dan masih bisa dipulihkan selama 30 hari.
+
+### Mengubah tampilan atau pejabat
+
+- **Pejabat berganti**: ubah Nama dan NIP di sheet **Pengesahan**. Kode tidak perlu diubah.
+- **Kop, logo, atau teks tetap**: sunting dokumen template di Google Docs. Placeholder `{{...}}` jangan dihapus. Penanda `{{ISI_LAPORAN}}` dan `{{LAMPIRAN}}` harus berdiri sebagai paragraf sendiri dan tidak boleh berada di dalam tabel.
+- Daftar placeholder: `RESOR`, `RESOR_KAPITAL`, `SPTN`, `SPTN_KAPITAL`, `PERIODE`, `PERIODE_KAPITAL`, `TEMPAT_SPTN`, `DASAR`, `TEMPAT_TTD`, `TANGGAL_TTD`, `JABATAN_KR`, `NAMA_KR`, `NIP_KR`, `JABATAN_SPTN`, `NAMA_SPTN`, `NIP_SPTN`, `JABATAN_BALAI`, `NAMA_BALAI`, `NIP_BALAI`.
+
+> Batas Apps Script: satu kali pembuatan maksimal 6 menit. Satu bulan dengan sekitar 30 laporan dan 100 foto masih aman, tetapi perlu diuji di akun kantor. PDF di atas 30 MB tidak dikirim lewat web dan harus diambil verifikator dari Drive.
+
 ## Pengamanan
 
 - Petugas tidak perlu akun. Pengirim dikendalikan dengan **kode akses per resor**: server menolak laporan bila kode tidak cocok dengan resor yang dipilih. Bila kode bocor, jalankan `gantiKodeAkses('R3')` di editor Apps Script.
@@ -92,6 +137,7 @@ Jangan menghapus baris laporan. Pakai status `Ditolak` supaya jejak audit tetap 
 - Bukti dukung disimpan di Drive kantor dan **tidak dibagikan publik**.
 - Data yang dapat dibaca publik melalui dashboard hanya berisi ID, tanggal, resor, kode kegiatan, volume, dan status. Nama petugas, catatan, lokasi, dan bukti tidak ikut.
 - Ada rem sederhana terhadap spam: maksimal 20 kiriman per resor per 10 menit.
+- PDF laporan bulanan memuat nama petugas, catatan, dan foto. Karena itu PDF hanya diberikan kepada resor yang memasukkan kode aksesnya sendiri dan tidak pernah tampil di dashboard publik.
 
 ## Ganti tahun / ubah rencana
 
