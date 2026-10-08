@@ -259,3 +259,22 @@ footer.foot { color: var(--muted); font-size: 12.5px; padding: 28px 0 40px; }
   .card { padding: 16px; }
   .meta { text-align: left; margin-left: 0; }
 }
+
+/* Pemilih nama (ketua & anggota tim) */
+.picker { position: relative; display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  border: 1px solid var(--axis); border-radius: 8px; background: var(--surface); padding: 6px; min-height: 44px; }
+.picker:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
+.picker .pk-chips { display: contents; }
+.picker .pk-input { flex: 1 1 160px; min-width: 120px; border: 0 !important; outline: none !important; min-height: 30px !important; padding: 4px 6px !important; background: transparent !important; }
+.picker .pk-input:disabled { cursor: not-allowed; }
+.chip { display: inline-flex; align-items: center; gap: 4px; background: var(--accent-soft); color: var(--ink);
+  border-radius: 999px; padding: 4px 4px 4px 10px; font-size: 13.5px; max-width: 100%; }
+.chip button { border: 0; background: none; color: var(--ink-2); font-size: 16px; line-height: 1; cursor: pointer; padding: 2px 6px; border-radius: 999px; }
+.chip button:hover { background: var(--surface); }
+.pk-list { position: absolute; left: -1px; right: -1px; top: calc(100% + 4px); z-index: 20; list-style: none; margin: 0; padding: 4px;
+  background: var(--surface); border: 1px solid var(--axis); border-radius: 8px; max-height: 280px; overflow: auto; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+.pk-list li { padding: 8px 10px; border-radius: 6px; cursor: pointer; }
+.pk-list li b { display: block; font-weight: 600; font-size: 14px; }
+.pk-list li small { display: block; color: var(--muted); font-size: 12.5px; }
+.pk-list li.aktif, .pk-list li[data-i]:hover { background: var(--accent-soft); }
+.pk-list li.pk-kosong { color: var(--muted); cursor: default; font-size: 13px; }
