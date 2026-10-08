@@ -194,7 +194,12 @@ function buatLaporanBulanan_(o) {
   var data = ambilData_(rid, o.bulan);
   if (!data.bulanIni.length) {
     throw new Error('Belum ada laporan berstatus Diterima untuk ' + namaResor + ' bulan ' + periode + '.' +
-      (data.menunggu ? ' Ada ' + data.menunggu + ' laporan yang masih menunggu verifikasi.' : ''));
+      (data.menunggu ? ' Ada ' + data.menunggu + ' laporan yang masih menunggu verifikasi.' : '') +
+      (Object.keys(data.adaDiterima).length
+        ? ' Laporan Diterima resor ini tercatat pada bulan: ' + Object.keys(data.adaDiterima).sort(function (a, b) { return a - b; })
+            .map(function (b) { return (BULAN_ID[b - 1] || ('bulan ' + b)) + ' (' + data.adaDiterima[b] + ')'; }).join(', ') +
+          '. Bulan mengikuti Tanggal Pelaksanaan, bukan tanggal kirim.'
+        : ' Belum ada satu pun laporan Diterima untuk resor ini; periksa kolom "Kode Resor" pada baris laporan.'));
   }
 
   var namaFile = 'Laporan RBM ' + RENCANA.tahun + '-' + ('0' + o.bulan).slice(-2) + ' ' + namaResor;
@@ -248,11 +253,13 @@ function ambilData_(rid, bulan) {
   var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_LAPORAN);
   var rows = sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, KOLOM.length).getValues() : [];
   var g = function (r, k) { return r[COL[k] - 1]; };
-  var semua = [], menunggu = 0;
+  var semua = [], menunggu = 0, adaDiterima = {};
   rows.forEach(function (r) {
-    if (!g(r, 'ID') || g(r, 'Kode Resor') !== rid) return;
-    var b = Number(g(r, 'Bulan')), st = g(r, 'Status') || 'Menunggu';
+    if (!g(r, 'ID') || String(g(r, 'Kode Resor')).trim() !== rid) return;
+    var b = bulanBaris_(g(r, 'Bulan'), g(r, 'Tanggal Pelaksanaan'));
+    var st = String(g(r, 'Status') || 'Menunggu').trim();
     if (b === bulan && st === 'Menunggu') menunggu++;
+    if (st === 'Diterima') adaDiterima[b] = (adaDiterima[b] || 0) + 1;
     if (st !== 'Diterima' || b > bulan) return;
     var tgl = g(r, 'Tanggal Pelaksanaan');
     semua.push({
@@ -264,7 +271,16 @@ function ambilData_(rid, bulan) {
     });
   });
   semua.sort(function (a, b) { return a.tanggal - b.tanggal || (a.id < b.id ? -1 : 1); });
-  return { semua: semua, bulanIni: semua.filter(function (l) { return l.bulan === bulan; }), menunggu: menunggu };
+  return { semua: semua, bulanIni: semua.filter(function (l) { return l.bulan === bulan; }), menunggu: menunggu, adaDiterima: adaDiterima };
+}
+
+/** Bulan laporan: kolom "Bulan" (1–12); bila kosong/terformat tanggal, ambil dari Tanggal Pelaksanaan. */
+function bulanBaris_(b, tgl) {
+  var n = Number(b);
+  if (!(b instanceof Date) && n >= 1 && n <= 12) return n;
+  if (tgl instanceof Date) return Number(Utilities.formatDate(tgl, Session.getScriptTimeZone(), 'M'));
+  var m = String(tgl).match(/^\d{4}-(\d{2})/);
+  return m ? Number(m[1]) : 0;
 }
 
 /** Realisasi sesuai aturan dashboard (assets/rbm.js). */
