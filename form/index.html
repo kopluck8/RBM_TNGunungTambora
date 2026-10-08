@@ -25,7 +25,7 @@
   <form id="f" novalidate>
     <div class="card">
       <fieldset>
-        <legend>1. Identitas pelapor</legend>
+        <legend>1. Resor &amp; tim pelaksana</legend>
         <div class="row">
           <div class="field">
             <label for="resor">Resor <span class="req">*</span></label>
@@ -37,9 +37,20 @@
             <div class="hint">Didapat dari kantor. Jangan dibagikan ke resor lain.</div>
           </div>
         </div>
+        <div id="pgw-status" class="hint" style="margin:-6px 0 12px">Pilih resor dan isi kode akses untuk memuat daftar pegawai.</div>
         <div class="field">
-          <label for="petugas">Nama petugas / ketua tim <span class="req">*</span></label>
-          <input id="petugas" type="text" autocomplete="name" maxlength="100" required>
+          <label for="ketua-cari">Ketua tim <span class="req">*</span></label>
+          <div class="picker" id="pk-ketua" data-input-id="ketua-cari"></div>
+        </div>
+        <div class="field">
+          <label for="anggota-cari">Anggota tim (pegawai)</label>
+          <div class="picker" id="pk-anggota" data-input-id="anggota-cari"></div>
+          <div class="hint">Ketik sebagian nama untuk mencari. Pegawai resor/SPTN lain boleh dipilih untuk kegiatan gabungan.</div>
+        </div>
+        <div class="field">
+          <label for="anggota_lain">Anggota lain di luar pegawai</label>
+          <input id="anggota_lain" type="text" maxlength="300" placeholder="mis. 5 anggota MMP Desa Piong; 2 personel Polsek Pekat">
+          <div class="hint">Mitra, MMP/MPA, masyarakat, Polri/TNI, atau peneliti yang ikut kegiatan.</div>
         </div>
       </fieldset>
     </div>
@@ -129,7 +140,7 @@
   const { CFG, esc } = RBM;
   const $ = id => document.getElementById(id);
   const DRAF_KEY = 'rbm-draf-' + CFG.TAHUN;
-  const ID_FIELDS = ['resor', 'petugas', 'tanggal', 'indikator', 'kegiatan', 'kegiatan_lain', 'satuan_lain', 'volume', 'lokasi', 'catatan', 'revisi_dari'];
+  const ID_FIELDS = ['resor', 'tanggal', 'indikator', 'kegiatan', 'kegiatan_lain', 'satuan_lain', 'volume', 'lokasi', 'catatan', 'revisi_dari', 'anggota_lain'];
   const store = {
     get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } },
     set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
@@ -231,6 +242,109 @@
   $('kegiatan').addEventListener('change', ubahKegiatan);
   $('catatan').addEventListener('input', () => $('catatan-n').textContent = $('catatan').value.trim().length);
 
+
+  // --- Tim pelaksana: daftar pegawai dari server (setelah resor + kode akses cocok)
+  const norm = x => String(x || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[.,]/g, ' ').replace(/\s+/g, ' ').trim();
+  function buatPicker(root, opt) {
+    const inputId = root.dataset.inputId;
+    root.innerHTML = `<div class="pk-chips"></div><input type="text" id="${inputId}" class="pk-input" autocomplete="off" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="${inputId}-list"><ul class="pk-list hidden" id="${inputId}-list" role="listbox"></ul>`;
+    const chips = root.querySelector('.pk-chips'), inp = root.querySelector('input'), ul = root.querySelector('ul');
+    let data = [], sel = [], hasil = [], aktif = -1, bebas = false;
+    const ph = () => inp.placeholder = opt.multi ? (sel.length ? 'Tambah anggota…' : 'Cari nama pegawai…') : 'Cari nama pegawai…';
+    function gambar() {
+      chips.innerHTML = sel.map((n, i) => `<span class="chip">${esc(n)}<button type="button" data-i="${i}" aria-label="Hapus ${esc(n)}">×</button></span>`).join('');
+      inp.classList.toggle('hidden', !opt.multi && sel.length > 0);
+      ph();
+    }
+    function tutup() { ul.classList.add('hidden'); inp.setAttribute('aria-expanded', 'false'); aktif = -1; }
+    function cari() {
+      const q = norm(inp.value), lain = new Set([...sel, ...(opt.kecuali ? opt.kecuali() : [])]);
+      const kata = q ? q.split(' ') : [];
+      hasil = data.filter(p => !lain.has(p.n) && kata.every(k => p._s.includes(k))).slice(0, 8);
+      let html = hasil.map((p, i) => `<li role="option" id="${inputId}-o${i}" data-i="${i}"><b>${esc(p.n)}</b>${p.j || p.u ? `<small>${esc([p.j, p.u].filter(Boolean).join(' · '))}</small>` : ''}</li>`).join('');
+      if (bebas && q.length >= 3 && !data.some(p => norm(p.n) === q)) { hasil.push({ n: inp.value.trim(), bebas: true }); html += `<li role="option" data-i="${hasil.length - 1}"><b>Pakai nama: ${esc(inp.value.trim())}</b></li>`; }
+      if (!html) html = `<li class="pk-kosong">${data.length ? 'Nama tidak ditemukan. Mitra non-pegawai ditulis di kolom "Anggota lain".' : 'Daftar pegawai belum dimuat.'}</li>`;
+      ul.innerHTML = html; ul.classList.remove('hidden'); inp.setAttribute('aria-expanded', 'true'); aktif = -1;
+    }
+    function pilih(i) {
+      const p = hasil[i]; if (!p) return;
+      sel = opt.multi ? sel.concat(p.n) : [p.n];
+      inp.value = ''; gambar(); tutup(); opt.onChange && opt.onChange();
+      if (opt.multi) inp.focus();
+    }
+    function sorot(i) {
+      const li = ul.querySelectorAll('li[data-i]'); if (!li.length) return;
+      aktif = (i + li.length) % li.length;
+      li.forEach((x, k) => x.classList.toggle('aktif', k === aktif));
+      inp.setAttribute('aria-activedescendant', li[aktif].id || ''); li[aktif].scrollIntoView({ block: 'nearest' });
+    }
+    inp.addEventListener('input', cari);
+    inp.addEventListener('focus', cari);
+    inp.addEventListener('blur', () => setTimeout(tutup, 150));
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'ArrowDown') { e.preventDefault(); if (ul.classList.contains('hidden')) cari(); sorot(aktif + 1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); sorot(aktif - 1); }
+      else if (e.key === 'Enter') { e.preventDefault(); if (aktif >= 0) pilih(aktif); else if (hasil.length === 1) pilih(0); }
+      else if (e.key === 'Escape') tutup();
+      else if (e.key === 'Backspace' && !inp.value && sel.length && opt.multi) { sel.pop(); gambar(); opt.onChange && opt.onChange(); }
+    });
+    ul.addEventListener('mousedown', e => { const li = e.target.closest('li[data-i]'); if (li) { e.preventDefault(); pilih(+li.dataset.i); } });
+    chips.addEventListener('click', e => { const i = e.target.dataset.i; if (i != null) { sel.splice(+i, 1); gambar(); opt.onChange && opt.onChange(); if (!opt.multi) inp.focus(); } });
+    gambar();
+    return {
+      setData(list, bolehBebas) { data = list.map(p => ({ ...p, _s: norm([p.n, p.j, p.u].join(' ')) })); bebas = bolehBebas; },
+      get: () => sel.slice(),
+      set(names) { sel = (names || []).filter(n => n && (bebas || data.some(p => p.n === n))); if (!opt.multi) sel = sel.slice(0, 1); gambar(); },
+      disable(v) { inp.disabled = v; }
+    };
+  }
+  const pkKetua = buatPicker($('pk-ketua'), { multi: false, kecuali: () => pkAnggota.get(), onChange: () => simpanDraf() });
+  const pkAnggota = buatPicker($('pk-anggota'), { multi: true, kecuali: () => pkKetua.get(), onChange: () => simpanDraf() });
+  let pegawai = [], timTertunda = null, kunciMuat = '', daftarDimuat = false;
+  /** Pasang tim dari draf/ingatan setelah daftar pegawai tersedia. Kembalikan jumlah nama yang tidak ditemukan. */
+  function terapkanTim() {
+    if (!timTertunda || !daftarDimuat) return 0;
+    const lama = [timTertunda.ketua].concat(timTertunda.anggota || []).filter(Boolean);
+    pkKetua.set([timTertunda.ketua]); pkAnggota.set(timTertunda.anggota);
+    timTertunda = null;
+    return lama.length - pkKetua.get().length - pkAnggota.get().length;
+  }
+  const PEGAWAI_CONTOH = [
+    ['Nama Contoh Satu, S.Hut.', 'Polisi Kehutanan', 'Resor Piong', 'R1'], ['Nama Contoh Dua', 'Pengendali Ekosistem Hutan', 'Resor Piong', 'R1'],
+    ['Nama Contoh Tiga, A.Md.', 'Penyuluh Kehutanan', 'Resor Oi Katupa', 'R2'], ['Nama Contoh Empat, S.Si.', 'PEH', 'SPTN Wilayah I Kore', ''],
+    ['Nama Contoh Lima', 'Polisi Kehutanan', 'Resor Doroncaga', 'R4']
+  ].map(([n, j, u, r]) => ({ n, j, u, r }));
+  function urutkan(list) {
+    const rid = $('resor').value;
+    return list.slice().sort((a, b) => (b.r === rid) - (a.r === rid) || a.n.localeCompare(b.n, 'id'));
+  }
+  function pasangDaftar(list, info) {
+    pegawai = urutkan(list); daftarDimuat = true;
+    const bebas = !pegawai.length; // sheet Pegawai kosong → nama boleh diketik (masa transisi)
+    pkKetua.setData(pegawai, bebas); pkAnggota.setData(pegawai, false);
+    pkKetua.disable(false); pkAnggota.disable(bebas);
+    const hilang = terapkanTim();
+    $('pgw-status').innerHTML = info + (hilang > 0 ? ' <strong>Sebagian nama tersimpan sebelumnya tidak ada di daftar; pilih ulang.</strong>' : '');
+  }
+  async function muatPegawai() {
+    const rid = $('resor').value, kode = $('kode').value.trim();
+    if (!rid || kode.length < 4) return;
+    const kunci = rid + '|' + kode; if (kunci === kunciMuat) return; kunciMuat = kunci;
+    if (!CFG.API_URL) return pasangDaftar(PEGAWAI_CONTOH, 'Mode contoh: daftar pegawai fiktif.');
+    $('pgw-status').textContent = 'Memuat daftar pegawai…';
+    try {
+      const r = await fetch(CFG.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ aksi: 'pegawai', resor: rid, kode_akses: kode }) });
+      const j = await r.json();
+      if (kunci !== kunciMuat) return; // sudah diganti isian baru
+      if (!j.ok) { kunciMuat = ''; $('pgw-status').innerHTML = '<span class="req">' + esc(j.error) + '</span>'; return; }
+      pasangDaftar(j.pegawai || [], j.pegawai && j.pegawai.length ? `${j.pegawai.length} pegawai dimuat. Pegawai ${esc(resorById[rid].nama)} tampil paling atas.` : 'Daftar pegawai kantor belum diisi; ketik nama ketua tim secara manual.');
+    } catch (e) { kunciMuat = ''; $('pgw-status').innerHTML = '<span class="req">Daftar pegawai gagal dimuat (cek sinyal), coba isi ulang kode akses.</span>'; }
+  }
+  pkKetua.disable(true); pkAnggota.disable(true);
+  let tk; $('kode').addEventListener('input', () => { clearTimeout(tk); tk = setTimeout(muatPegawai, 700); });
+  $('kode').addEventListener('change', muatPegawai);
+  $('resor').addEventListener('change', () => { kunciMuat = ''; muatPegawai(); });
+
   // --- File bukti
   let files = [];
   const MAKS_FILE = 5, MAKS_PDF = 5 * 1024 * 1024;
@@ -269,6 +383,7 @@
   // --- Draf
   function simpanDraf() {
     const d = {}; ID_FIELDS.forEach(id => d[id] = $(id).value);
+    d.ketua = pkKetua.get()[0] || ''; d.anggota = pkAnggota.get();
     store.set(DRAF_KEY, d);
     $('draf-info').textContent = 'Draf tersimpan ' + new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
   }
@@ -277,7 +392,9 @@
     const ingat = store.get('rbm-pelapor') || {};
     const src = d || ingat;
     if (src.resor) { $('resor').value = src.resor; isiIndikator(); }
-    if (src.petugas) $('petugas').value = src.petugas;
+    timTertunda = { ketua: src.ketua || src.petugas || '', anggota: src.anggota || [], lain: src.anggota_lain || '' };
+    if (timTertunda.lain) $('anggota_lain').value = timTertunda.lain;
+    terapkanTim();
     if (!d) return;
     if (d.indikator) { $('indikator').value = d.indikator; isiKegiatan(); }
     if (d.kegiatan) { $('kegiatan').value = d.kegiatan; ubahKegiatan(); }
@@ -295,9 +412,10 @@
 
   $('btn-reset').addEventListener('click', () => {
     if (!confirm('Kosongkan semua isian?')) return;
-    store.del(DRAF_KEY); const resor = $('resor').value, pet = $('petugas').value;
+    store.del(DRAF_KEY); const resor = $('resor').value, kode = $('kode').value;
     $('f').reset(); files = []; gambarFile(); tulisTanggal();
-    $('resor').value = resor; $('petugas').value = pet; isiIndikator();
+    $('resor').value = resor; $('kode').value = kode; isiIndikator();
+    pkKetua.set([]); pkAnggota.set([]);
     $('banner-draf').classList.add('hidden'); $('pesan').classList.add('hidden'); $('draf-info').textContent = '';
   });
 
@@ -311,7 +429,7 @@
     const v = id => $(id).value.trim();
     if (!v('resor')) e.push('Pilih resor.');
     if (!v('kode')) e.push('Isi kode akses resor.');
-    if (v('petugas').length < 3) e.push('Isi nama petugas.');
+    if (!pkKetua.get().length) e.push(pegawai.length ? 'Pilih ketua tim dari daftar pegawai.' : 'Isi nama ketua tim.');
     if (!v('tanggal')) e.push('Isi tanggal pelaksanaan.');
     else if (v('tanggal') < $('tanggal').min || v('tanggal') > $('tanggal').max) e.push('Tanggal harus antara ' + tanggalKata($('tanggal').min) + ' dan ' + tanggalKata($('tanggal').max) + '.');
     if (!v('kegiatan')) e.push('Pilih jenis kegiatan.');
@@ -338,7 +456,7 @@
     try {
       const keg = kegById[$('kegiatan').value];
       const payload = {
-        resor: $('resor').value, kode_akses: $('kode').value.trim(), petugas: $('petugas').value.trim(),
+        resor: $('resor').value, kode_akses: $('kode').value.trim(), petugas: pkKetua.get()[0] || '', anggota: pkAnggota.get(), anggota_lain: $('anggota_lain').value.trim(),
         tanggal: $('tanggal').value, indikator: $('indikator').value, kegiatan: $('kegiatan').value,
         kegiatan_lain: $('kegiatan_lain').value.trim(), satuan_lain: $('satuan_lain').value.trim(),
         volume: Number($('volume').value), lokasi: $('lokasi').value.trim(),
@@ -356,13 +474,14 @@
       const j = await r.json();
       if (!j.ok) return tampil('err', '<strong>Laporan ditolak server.</strong> ' + esc(j.error));
 
-      store.set('rbm-pelapor', { resor: payload.resor, petugas: payload.petugas });
+      store.set('rbm-pelapor', { resor: payload.resor, ketua: payload.petugas, anggota: payload.anggota, anggota_lain: payload.anggota_lain });
       store.del(DRAF_KEY);
       tampil('ok', `<strong>Laporan terkirim.</strong> Nomor laporan: <strong>${esc(j.id)}</strong> (kegiatan ${tanggalKata(payload.tanggal)}). Simpan nomor ini; status awal <em>Menunggu verifikasi</em>.` +
         (j.sesuai === 'Tidak' ? '<br>Kegiatan dicatat sebagai di luar rencana.' : ''));
-      const resor = $('resor').value, pet = $('petugas').value, kode = $('kode').value;
+      const resor = $('resor').value, kode = $('kode').value, lain = $('anggota_lain').value;
       $('f').reset(); files = []; gambarFile(); tulisTanggal();
-      $('resor').value = resor; $('petugas').value = pet; $('kode').value = kode; isiIndikator();
+      $('resor').value = resor; $('kode').value = kode; $('anggota_lain').value = lain; isiIndikator();
+      // tim tetap terisi: laporan berikutnya biasanya oleh tim yang sama
       $('catatan-n').textContent = '0'; $('banner-draf').classList.add('hidden'); $('draf-info').textContent = '';
     } catch (e) {
       tampil('err', '<strong>Gagal mengirim.</strong> Periksa sinyal internet lalu coba lagi. Isian teks tetap tersimpan sebagai draf. <br><small>' + esc(e.message) + '</small>');
