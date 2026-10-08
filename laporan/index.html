@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="../assets/logo.png">
+<title>Laporan Bulanan RBM</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="../"><img class="brand-logo" src="../assets/logo.png" alt="Logo kantor" onerror="this.remove();document.querySelector('.brand-mark').hidden=false"><span class="brand-mark" hidden>RBM</span><span><b>Resort Based Management</b><small>Taman Nasional Tambora</small></span></a>
+    <nav class="top-nav"><a href="../form/">Form</a><a href="./" aria-current="page">Laporan Bulanan</a><a href="../dashboard/">Dashboard</a></nav>
+  </div>
+</header>
+
+<main class="wrap narrow">
+  <h1>Unduh laporan bulanan</h1>
+  <p class="lead">PDF berisi cover, lembar pengesahan, rangkuman hasil RBM, dan lampiran dokumentasi per jenis kegiatan. Hanya laporan yang sudah <em>Diterima</em> verifikator yang dimuat.</p>
+
+  <div id="banner-contoh" class="banner warn hidden"><strong>Mode contoh.</strong> Halaman belum terhubung ke server, jadi PDF tidak dapat dibuat. Atur <code>API_URL</code> di <code>assets/config.js</code>.</div>
+
+  <form id="f" novalidate>
+    <div class="card">
+      <fieldset>
+        <legend>1. Resor &amp; periode</legend>
+        <div class="row">
+          <div class="field">
+            <label for="resor">Resor <span class="req">*</span></label>
+            <select id="resor" required><option value="">— Pilih resor —</option></select>
+          </div>
+          <div class="field">
+            <label for="kode">Kode akses resor <span class="req">*</span></label>
+            <input id="kode" type="password" inputmode="numeric" autocomplete="off" maxlength="12" required>
+          </div>
+        </div>
+        <div class="field">
+          <label for="bulan">Bulan laporan <span class="req">*</span></label>
+          <select id="bulan" required></select>
+        </div>
+      </fieldset>
+    </div>
+
+    <div class="card">
+      <fieldset>
+        <legend>2. Lembar pengesahan</legend>
+        <div class="field">
+          <label for="nama_kr">Nama Kepala Resor (dengan gelar) <span class="req">*</span></label>
+          <input id="nama_kr" type="text" maxlength="120" autocomplete="name" required>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="nip_kr">NIP Kepala Resor <span class="req">*</span></label>
+            <input id="nip_kr" type="text" inputmode="numeric" maxlength="24" required>
+          </div>
+          <div class="field">
+            <label for="tempat">Tempat penandatanganan</label>
+            <input id="tempat" type="text" maxlength="60">
+            <div class="hint">Tanggal diisi otomatis dengan tanggal unduh.</div>
+          </div>
+        </div>
+        <div class="field">
+          <label for="dasar">Dasar <span class="req">*</span></label>
+          <textarea id="dasar" maxlength="600" style="min-height:70px" required placeholder="mis. DIPA Balai Taman Nasional Tambora Tahun Anggaran 2026"></textarea>
+        </div>
+        <div class="hint">Kepala SPTN dan Kepala Balai terisi otomatis sesuai data kantor. Nama, NIP, tempat, dan dasar diingat di perangkat ini; kode akses tidak.</div>
+      </fieldset>
+    </div>
+
+    <div id="pesan" class="banner hidden" role="status" aria-live="polite"></div>
+    <div class="actions">
+      <button class="btn primary" type="submit" id="btn">Buat &amp; unduh PDF</button>
+      <span class="hint" id="waktu"></span>
+    </div>
+  </form>
+  <footer class="foot">Pembuatan PDF bisa memakan waktu 1–3 menit bila fotonya banyak. Jangan tutup halaman selama proses berjalan.</footer>
+</main>
+
+<script src="../assets/config.js"></script>
+<script src="../assets/rbm.js"></script>
+<script>
+(async function () {
+  const { CFG, esc } = RBM;
+  const $ = id => document.getElementById(id);
+  const BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+  const store = {
+    get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  };
+  const KEY = 'rbm-pengesahan';
+
+  function tampil(jenis, html) {
+    const p = $('pesan'); p.className = 'banner ' + jenis; p.innerHTML = html; p.classList.remove('hidden');
+    p.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  if (!CFG.API_URL) $('banner-contoh').classList.remove('hidden');
+
+  let rencana;
+  try { rencana = await RBM.muatRencana(); }
+  catch (e) { tampil('err', 'Data rencana tidak bisa dimuat: ' + esc(e.message)); return; }
+  const resorById = Object.fromEntries(rencana.resor.map(r => [r.id, r]));
+
+  // Resor dikelompokkan per SPTN
+  let html = '<option value="">— Pilih resor —</option>', last = '';
+  rencana.resor.forEach(r => {
+    if (r.sptn !== last) { if (last) html += '</optgroup>'; html += `<optgroup label="${esc(r.sptn)}">`; last = r.sptn; }
+    html += `<option value="${r.id}">${esc(r.nama)}</option>`;
+  });
+  $('resor').innerHTML = html + '</optgroup>';
+
+  // Bulan: Januari s.d. bulan berjalan, default bulan lalu
+  const bb = RBM.bulanBerjalan(rencana.tahun);
+  $('bulan').innerHTML = BULAN.slice(0, Math.max(bb, 1)).map((b, i) => `<option value="${i + 1}">${b} ${rencana.tahun}</option>`).join('');
+  $('bulan').value = String(Math.max(1, bb - 1));
+
+  // Isian yang diingat per resor
+  const ingat = store.get(KEY) || {};
+  function isiDariIngatan() {
+    const rid = $('resor').value, r = resorById[rid];
+    const m = (ingat.per || {})[rid] || {};
+    $('nama_kr').value = m.nama_kr || '';
+    $('nip_kr').value = m.nip_kr || '';
+    $('tempat').value = m.tempat || (r ? r.nama.replace(/^Resor\s+/i, '') : '');
+    $('dasar').value = m.dasar || ingat.dasar || '';
+  }
+  $('resor').addEventListener('change', isiDariIngatan);
+  if (ingat.resor && resorById[ingat.resor]) $('resor').value = ingat.resor;
+  isiDariIngatan();
+
+  function validasi() {
+    const e = [], v = id => $(id).value.trim();
+    if (!v('resor')) e.push('Pilih resor.');
+    if (!v('kode')) e.push('Isi kode akses resor.');
+    if (v('nama_kr').length < 3) e.push('Isi nama Kepala Resor.');
+    if (!/^[\d ]+$/.test(v('nip_kr')) || v('nip_kr').replace(/ /g, '').length < 8) e.push('NIP hanya boleh berisi angka.');
+    if (v('dasar').length < 5) e.push('Isi dasar laporan.');
+    return e;
+  }
+
+  function unduh(base64, nama) {
+    const bin = atob(base64), u8 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    const url = URL.createObjectURL(new Blob([u8], { type: 'application/pdf' }));
+    const a = document.createElement('a'); a.href = url; a.download = nama; document.body.appendChild(a); a.click(); a.remove();
+    return url;
+  }
+
+  $('f').addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const err = validasi();
+    if (err.length) return tampil('err', '<strong>Periksa kembali:</strong><ul style="margin:6px 0 0;padding-left:18px">' + err.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>');
+
+    const payload = {
+      aksi: 'laporan_bulanan', resor: $('resor').value, kode_akses: $('kode').value.trim(), bulan: Number($('bulan').value),
+      nama_kr: $('nama_kr').value.trim(), nip_kr: $('nip_kr').value.trim(), tempat: $('tempat').value.trim(), dasar: $('dasar').value.trim()
+    };
+    // ingat isian (tanpa kode akses)
+    ingat.resor = payload.resor; ingat.dasar = payload.dasar; ingat.per = ingat.per || {};
+    ingat.per[payload.resor] = { nama_kr: payload.nama_kr, nip_kr: payload.nip_kr, tempat: payload.tempat, dasar: payload.dasar };
+    store.set(KEY, ingat);
+
+    if (!CFG.API_URL) return tampil('warn', '<strong>Mode contoh.</strong> Isian valid, tetapi PDF hanya bisa dibuat setelah halaman terhubung ke server.');
+
+    const btn = $('btn'); btn.disabled = true; btn.textContent = 'Membuat PDF…';
+    const mulai = Date.now();
+    const tik = setInterval(() => { $('waktu').textContent = Math.round((Date.now() - mulai) / 1000) + ' detik'; }, 1000);
+    $('pesan').classList.add('hidden');
+    try {
+      const r = await fetch(CFG.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
+      const j = await r.json();
+      if (!j.ok) return tampil('err', '<strong>PDF tidak dapat dibuat.</strong> ' + esc(j.error));
+      const url = unduh(j.pdf, j.nama);
+      tampil('ok', `<strong>PDF siap.</strong> ${j.jumlah} laporan dan ${j.foto} foto dimuat. ` +
+        `Bila unduhan tidak berjalan otomatis, <a href="${url}" download="${esc(j.nama)}">klik di sini</a>.` +
+        (j.menunggu ? `<br>Catatan: ${j.menunggu} laporan bulan ini masih <em>Menunggu</em> verifikasi dan belum dimuat. Unduh ulang setelah diverifikasi.` : '') +
+        '<br>Cetak, tanda tangani, lalu serahkan ke SPTN untuk dinilai.');
+    } catch (e) {
+      tampil('err', '<strong>Gagal menghubungi server.</strong> Periksa sinyal internet lalu coba lagi.<br><small>' + esc(e.message) + '</small>');
+    } finally {
+      clearInterval(tik); $('waktu').textContent = '';
+      btn.disabled = false; btn.textContent = 'Buat & unduh PDF';
+    }
+  });
+})();
+</script>
+</body>
+</html>
